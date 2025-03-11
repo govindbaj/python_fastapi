@@ -1,0 +1,48 @@
+pip install fastapi uvicorn google-cloud-dialogflow-cx
+
+uvicorn main:app --reload
+curl -X 'POST' 'http://127.0.0.1:8000/query' \
+-H 'Content-Type: application/json' \
+-d '{"text": "Can you suggest a good doctor for heart problems?"}'
+
+from fastapi import FastAPI
+from google.cloud import dialogflowcx_v3beta1 as dialogflow
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# Google Dialogflow CX Configuration
+PROJECT_ID = "your-project-id"
+LOCATION = "global"  # or your specific region
+AGENT_ID = "your-agent-id"
+SESSION_ID = "user-session-id"
+LANGUAGE_CODE = "en"
+
+class QueryRequest(BaseModel):
+    text: str
+
+def detect_intent(text: str):
+    """Send user input to Dialogflow CX and get the response."""
+    client = dialogflow.SessionsClient()
+    session_path = f"projects/{PROJECT_ID}/locations/{LOCATION}/agents/{AGENT_ID}/sessions/{SESSION_ID}"
+
+    text_input = dialogflow.TextInput(text=text)
+    query_input = dialogflow.QueryInput(text=text_input, language_code=LANGUAGE_CODE)
+
+    response = client.detect_intent(session=session_path, query_input=query_input)
+
+    return response.query_result.response_messages[0].text.text[0]
+
+@app.post("/query")
+def get_response(query: QueryRequest):
+    """Handles user queries and returns responses."""
+    response_text = detect_intent(query.text)
+    
+    # Example: Doctor suggestion logic
+    if "doctor" in query.text.lower():
+        doctors = ["Dr. John Doe - Cardiologist", "Dr. Jane Smith - Neurologist"]
+        return {"response": response_text, "doctors": doctors}
+    
+    return {"response": response_text}
+
+# Run the server using: uvicorn main:app --reload
